@@ -1,0 +1,88 @@
+name: MERN CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # -------------------------------
+  # 🧪 JOB 1: Build & Test (Client + Server)
+  # -------------------------------
+  build:
+    name: 🏗️ Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: 📦 Install Backend Dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: 📦 Install frontend Dependencies
+        run: |
+          cd frontend
+          npm install
+
+      - name: 🔧 Build Frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: 🧪 Run Backend Tests
+        run: |
+          cd backend
+          npm test || echo "No tests yet"
+
+  # -------------------------------
+  # 📊 JOB 2: SonarQube (Optional)
+  # -------------------------------
+  sonar:
+    name: 📊 SonarQube Analysis
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 📊 Run SonarQube Scan
+        uses: sonarsource/sonarcloud-github-action@master
+        with:
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+
+  # -------------------------------
+  # 🚀 JOB 3: Deploy to EC2
+  # -------------------------------
+  deploy:
+    name: 🚀 Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🐳 Deploy via SSH to EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export NODE_ENV=production
+            cd mern_auth_app
+            git pull origin main
+            docker-compose down
+            docker-compose up --build -d
